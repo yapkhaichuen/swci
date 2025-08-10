@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SWCI Interactive Simulation — Investor Demo</title>
+  <meta name="description" content="Interactive, standalone simulation of the Sustainability-Weighted Crypto Index (SWCI) with formula explainers, adjustable weights, built-in tests, and polished visuals for investor demos." />
+  <style>
+    :root{
+      --bg:#000;
+      --panel:#0b0b0f;
+      --txt:#e6e6ea;
+      --txt-dim:#a7a7b4;
+      --accent:#7c5cff;        /* SWCI */
+      --accent-2:#2dd4bf;      /* Gradient end */
+      --success:#10b981;       /* GreenProof */
+      --warning:#fbbf24;       /* Efficiency */
+      --danger:#ff5c7a;        /* Carbon */
+      --info:#60a5fa;          /* Volatility */
+      --muted:#1a1a22;
+      --card: rgba(255,255,255,0.06);
+      --glass: rgba(255,255,255,0.08);
+      --shadow: 0 12px 36px rgba(0,0,0,.45);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--txt);font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans"; line-height:1.45}
+    .container{max-width:1280px;margin:0 auto;padding:24px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .title{font-weight:800;letter-spacing:.2px;font-size:clamp(20px,2vw,28px)}
+    .subtitle{color:var(--txt-dim);font-size:14px}
+    .grid{display:grid;grid-template-columns:1.3fr .7fr;gap:18px}
+    @media (max-width:1080px){.grid{grid-template-columns:1fr}}
+
+    .card{background:linear-gradient(180deg,var(--glass),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .card .hd{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px dashed rgba(255,255,255,0.08)}
+    .card .bd{padding:16px 18px}
+
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media (max-width:880px){.kpis{grid-template-columns:repeat(2,1fr)}}
+    .kpi{background:var(--card);padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06)}
+    .kpi .label{font-size:12px;color:var(--txt-dim)}
+    .kpi .num{font-weight:800;font-size:clamp(18px,2vw,24px)}
+
+    .row{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;align-items:center;margin:10px 0}
+    .row label{grid-column: span 4; font-size:14px; color:var(--txt-dim)}
+    .row .value{grid-column: span 2; text-align:right; font-variant-numeric: tabular-nums}
+    .row input[type="range"], .row input[type="number"]{grid-column: span 6}
+
+    input[type="range"]{appearance:none;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));outline:none}
+    input[type="range"]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:grab}
+    input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:grab}
+
+    .pillbar{position:relative;height:10px;background:var(--muted);border-radius:999px;overflow:hidden}
+    .pillbar>i{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg, var(--accent), var(--accent-2))}
+
+    .legend{display:flex;flex-wrap:wrap;gap:8px}
+    .legend .dot{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-dim)}
+    .legend .dot i{display:inline-block;width:10px;height:10px;border-radius:999px}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:var(--txt);cursor:pointer}
+    .btn:hover{background:rgba(255,255,255,0.08)}
+    .btn[aria-pressed="true"]{outline:2px solid var(--accent)}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px}
+
+    .status{font-size:12px;color:var(--txt-dim)}
+    .formula{font-size:15px;color:#fff;opacity:.95}
+    canvas{width:100%!important;height:380px!important}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+
+    /* subtle animated glow for demo mode */
+    .glow{box-shadow:0 0 0 0 rgba(124,92,255,.5);animation: pulse 2.5s ease-in-out infinite}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(124,92,255,.55)}50%{box-shadow:0 0 30px 8px rgba(124,92,255,.22)}100%{box-shadow:0 0 0 0 rgba(124,92,255,.55)}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script>
+    window.MathJax = { tex:{ inlineMath:[["$","$"],["\\(","\\)"]] }, svg:{ fontCache:'global' } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="title">Sustainability‑Weighted Crypto Index (SWCI) — Interactive Simulation</div>
+        <div class="subtitle">Investor‑ready visuals · adjustable policy weights · live formula</div>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="preset-baseline" title="No policy incentives.">Baseline</button>
+        <button class="btn" id="preset-fixed" title="Static carbon tax & modest green rewards.">Fixed Tax</button>
+        <button class="btn" id="preset-rl" title="Adaptive incentives inspired by RL-optimized policy.">Adaptive (RL‑like)</button>
+        <button class="btn" id="btn-impress" aria-pressed="false" title="Impress mode: glow + autoplay">✨ Impress</button>
+        <button class="btn" id="btn-play" aria-pressed="false" title="Start/stop the simulation">▶ Play</button>
+        <button class="btn" id="btn-reset" title="Reset the simulation">↺ Reset</button>
+        <button class="btn" id="btn-export" title="Export run history as CSV">⤓ CSV</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <div class="card glow" id="chart-card">
+        <div class="hd">
+          <div style="display:flex;gap:12px;align-items:center">
+            <span class="status" id="status-text">Paused · t = 0</span>
+            <span class="status mono" id="status-swci">SWCI = 0.000</span>
+          </div>
+          <div class="legend">
+            <span class="dot"><i style="background:var(--accent)"></i> SWCI</span>
+            <span class="dot"><i style="background:var(--success)"></i> GreenProof</span>
+            <span class="dot"><i style="background:var(--warning)"></i> Efficiency</span>
+            <span class="dot"><i style="background:var(--danger)"></i> Carbon</span>
+            <span class="dot"><i style="background:var(--info)"></i> Volatility</span>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="kpis" style="margin-bottom:12px">
+            <div class="kpi"><div class="label">SWCI</div><div class="num" id="kpi-swci">0.000</div><div class="pillbar"><i id="bar-swci"></i></div></div>
+            <div class="kpi"><div class="label">GreenProof (0–1)</div><div class="num" id="kpi-green">0.00</div><div class="pillbar"><i id="bar-green"></i></div></div>
+            <div class="kpi"><div class="label">Efficiency (norm)</div><div class="num" id="kpi-eff">1.00</div><div class="pillbar"><i id="bar-eff"></i></div></div>
+            <div class="kpi"><div class="label">Carbon (tCO₂)</div><div class="num" id="kpi-carb">100.0</div><div class="pillbar"><i id="bar-carb"></i></div></div>
+          </div>
+          <canvas id="chart"></canvas>
+          <div style="margin-top:16px">
+            <div class="formula" id="formula">$\\displaystyle \\text{SWCI}_t = \\frac{\\alpha\\,\\mathrm{GreenProof}_t^{\\eta}\\;\\cdot\\;\\beta\\,\\mathrm{Efficiency}_t^{\\zeta}}{\\gamma\\,\\mathrm{Carbon}_t^{\\theta}\\; +\\; \\delta\\,\\mathrm{Volatility}_t^{\\lambda}\\; +\\; \\varepsilon}$</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div class="status">Controls · Inputs (state) & Weights (policy)</div>
+          <div class="status">Speed (ms/step): <input id="speed" type="number" min="50" max="2000" step="50" value="200" class="mono" style="width:88px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,0.12);color:var(--txt);padding:6px 8px;border-radius:8px"></div>
+        </div>
+        <div class="bd">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <h3 style="margin:6px 0 8px 0">Inputs (State)</h3>
+              <div class="row"><label for="green">GreenProof</label><div class="value" id="val-green">0.30</div><input type="range" id="green" min="0" max="1" step="0.01" value="0.30"/></div>
+              <div class="row"><label for="eff">Efficiency</label><div class="value" id="val-eff">1.00</div><input type="range" id="eff" min="0.2" max="2.0" step="0.01" value="1.00"/></div>
+              <div class="row"><label for="carb">Carbon (tCO₂)</label><div class="value" id="val-carb">100.0</div><input type="range" id="carb" min="5" max="300" step="1" value="100"/></div>
+              <div class="row"><label for="vol">Volatility (30d σ)</label><div class="value" id="val-vol">0.60</div><input type="range" id="vol" min="0.05" max="1.20" step="0.01" value="0.60"/></div>
+              <div class="row"><label for="noise">Market Noise</label><div class="value" id="val-noise">0.20</div><input type="range" id="noise" min="0" max="0.6" step="0.01" value="0.20"/></div>
+            </div>
+            <div>
+              <h3 style="margin:6px 0 8px 0">Weights (Policy)</h3>
+              <div class="row"><label for="alpha">α (GreenProof)</label><div class="value" id="val-alpha">1.00</div><input type="range" id="alpha" min="0.2" max="2.5" step="0.01" value="1.00"/></div>
+              <div class="row"><label for="beta">β (Efficiency)</label><div class="value" id="val-beta">1.00</div><input type="range" id="beta" min="0.2" max="2.5" step="0.01" value="1.00"/></div>
+              <div class="row"><label for="gamma">γ (Carbon)</label><div class="value" id="val-gamma">1.20</div><input type="range" id="gamma" min="0.2" max="3.0" step="0.01" value="1.20"/></div>
+              <div class="row"><label for="delta">δ (Volatility)</label><div class="value" id="val-delta">0.80</div><input type="range" id="delta" min="0.2" max="3.0" step="0.01" value="0.80"/></div>
+              <div class="row"><label for="epsilon">ε (stability)</label><div class="value" id="val-epsilon">0.01</div><input type="range" id="epsilon" min="0.0" max="0.1" step="0.001" value="0.01"/></div>
+              <div class="row"><label for="eta">η (Green exponent)</label><div class="value" id="val-eta">1.00</div><input type="range" id="eta" min="0.5" max="2.0" step="0.01" value="1.00"/></div>
+              <div class="row"><label for="zeta">ζ (Eff exponent)</label><div class="value" id="val-zeta">1.00</div><input type="range" id="zeta" min="0.5" max="2.0" step="0.01" value="1.00"/></div>
+              <div class="row"><label for="theta">θ (Carbon exponent)</label><div class="value" id="val-theta">1.50</div><input type="range" id="theta" min="0.5" max="3.0" step="0.01" value="1.50"/></div>
+              <div class="row"><label for="lambda">λ (Vol exponent)</label><div class="value" id="val-lambda">1.10</div><input type="range" id="lambda" min="0.5" max="3.0" step="0.01" value="1.10"/></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="hd">
+        <div class="status">Explainers</div>
+        <div class="status">Hover any term to learn what it does</div>
+      </div>
+      <div class="bd" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div class="kpi" title="Proportion of energy from verifiable renewables (0–1). Tokenized RECs and oracle-backed IoT meters feed this."><div class="label">GreenProof</div><div class="num">Greener → higher numerator</div></div>
+        <div class="kpi" title="Energy-normalized throughput. More useful work per kWh raises the numerator."><div class="label">Efficiency</div><div class="num">Efficient → higher numerator</div></div>
+        <div class="kpi" title="CO₂e attributed to operations. Higher carbon raises denominator → lowers SWCI."><div class="label">Carbon</div><div class="num">More carbon → lower score</div></div>
+        <div class="kpi" title="30‑day standard deviation of log returns. Penalizes instability."><div class="label">Volatility</div><div class="num">More volatile → lower score</div></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="hd">
+        <div class="status">Tests</div>
+        <div class="status">Quick sanity checks for the SWCI formula and dynamics</div>
+      </div>
+      <div class="bd">
+        <div class="toolbar" style="margin-bottom:10px">
+          <button class="btn" id="btn-run-tests">Run Tests</button>
+          <div class="status mono">Results below; green = pass, pink = fail</div>
+        </div>
+        <ul id="test-results" class="mono" style="padding-left:18px;margin:0"></ul>
+      </div>
+    </section>
+
+    <footer style="opacity:.7;font-size:12px;margin-top:12px">
+      Keyboard: <kbd>Space</kbd> play/pause · <kbd>R</kbd> reset · <kbd>1/2/3</kbd> presets · <kbd>T</kbd> tests. Background is true black for LED walls.
+    </footer>
+  </div>
+
+  <script>
+  (function(){
+    'use strict';
+    // === Utilities ===
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const fmt = (n, d=2) => Number(n).toFixed(d);
+    const getById = id => document.getElementById(id);
+
+    // KPI Bars
+    const setBar = (id, pct) => { getById(id).style.width = clamp(pct,0,100) + '%'; };
+
+    // Controls
+    const controls = {
+      green:getById('green'), eff:getById('eff'), carb:getById('carb'), vol:getById('vol'), noise:getById('noise'),
+      alpha:getById('alpha'), beta:getById('beta'), gamma:getById('gamma'), delta:getById('delta'), epsilon:getById('epsilon'),
+      eta:getById('eta'), zeta:getById('zeta'), theta:getById('theta'), lambda:getById('lambda'),
+    };
+    const labels = {
+      green:getById('val-green'), eff:getById('val-eff'), carb:getById('val-carb'), vol:getById('val-vol'), noise:getById('val-noise'),
+      alpha:getById('val-alpha'), beta:getById('val-beta'), gamma:getById('val-gamma'), delta:getById('val-delta'), epsilon:getById('val-epsilon'),
+      eta:getById('val-eta'), zeta:getById('val-zeta'), theta:getById('val-theta'), lambda:getById('val-lambda'),
+    };
+
+    const kpi = { swci:getById('kpi-swci'), green:getById('kpi-green'), eff:getById('kpi-eff'), carb:getById('kpi-carb') };
+
+    const chartEl = getById('chart');
+    const speedEl = getById('speed');
+    const cardEl = getById('chart-card');
+
+    const btnPlay = getById('btn-play');
+    const btnReset = getById('btn-reset');
+    const btnRunTests = getById('btn-run-tests');
+    const btnExport = getById('btn-export');
+    const btnImpress = getById('btn-impress');
+
+    const presetButtons = { baseline:getById('preset-baseline'), fixed:getById('preset-fixed'), rl:getById('preset-rl') };
+
+    // === State ===
+    const state = { t:0, running:false, history:[], impress:false, interval:200 };
+
+    // === SWCI computation ===
+    function computeSWCI(vars, weights){
+      const { G, E, C, V } = vars; // GreenProof, Efficiency, Carbon, Volatility
+      const { a, b, g, d, e, eta, zeta, theta, lambda } = weights;
+      const num = (a * Math.pow(G, eta)) * (b * Math.pow(E, zeta));
+      const den = (g * Math.pow(C, theta)) + (d * Math.pow(V, lambda)) + e;
+      return num / den;
+    }
+
+    // === Read/Write UI ===
+    function readInputs(){
+      const vars = {
+        G: parseFloat(controls.green.value),
+        E: parseFloat(controls.eff.value),
+        C: parseFloat(controls.carb.value),
+        V: parseFloat(controls.vol.value),
+        N: parseFloat(controls.noise.value)
+      };
+      const weights = {
+        a: parseFloat(controls.alpha.value),
+        b: parseFloat(controls.beta.value),
+        g: parseFloat(controls.gamma.value),
+        d: parseFloat(controls.delta.value),
+        e: parseFloat(controls.epsilon.value),
+        eta: parseFloat(controls.eta.value),
+        zeta: parseFloat(controls.zeta.value),
+        theta: parseFloat(controls.theta.value),
+        lambda: parseFloat(controls.lambda.value),
+      };
+      return { vars, weights };
+    }
+
+    function writeLabels(){
+      for(const key in controls){ labels[key].textContent = fmt(controls[key].value, (key==='carb'?1:(key==='epsilon'?3:2))); }
+    }
+
+    function updateFormula(){
+      const { weights } = readInputs();
+      const f = `$_{ } \\displaystyle \\text{SWCI}_t = 
+        \\frac{ ${weights.a.toFixed(2)}\\,\\mathrm{GreenProof}_t^{${weights.eta.toFixed(2)}} \\cdot 
+                ${weights.b.toFixed(2)}\\,\\mathrm{Efficiency}_t^{${weights.zeta.toFixed(2)}} }
+             { ${weights.g.toFixed(2)}\\,\\mathrm{Carbon}_t^{${weights.theta.toFixed(2)}} \\; + \\; ${weights.d.toFixed(2)}\\,\\mathrm{Volatility}_t^{${weights.lambda.toFixed(2)}} \\; + \\; ${weights.e.toFixed(3)} }$`;
+      getById('formula').innerHTML = f;
+      if(window.MathJax?.typesetPromise){ MathJax.typesetPromise([getById('formula')]); }
+    }
+
+    function updateKPI(vars, swci){
+      kpi.swci.textContent = fmt(swci,3);
+      kpi.green.textContent = fmt(vars.G,2);
+      kpi.eff.textContent = fmt(vars.E,2);
+      kpi.carb.textContent = fmt(vars.C,1);
+      getById('status-swci').textContent = `SWCI = ${fmt(swci,3)}`;
+
+      setBar('bar-swci', swci*120);
+      setBar('bar-green', vars.G*100);
+      setBar('bar-eff', (vars.E-0.2)/1.8*100);
+      const carbPct = (vars.C - parseFloat(controls.carb.min)) / (parseFloat(controls.carb.max)-parseFloat(controls.carb.min)) * 100;
+      setBar('bar-carb', 100-carbPct);
+    }
+
+    // === Chart visuals ===
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const ctx = chartEl.getContext('2d');
+
+    // Gradient for SWCI fill
+    function swciGradient(){
+      const g = ctx.createLinearGradient(0,0,0,chartEl.height);
+      g.addColorStop(0, 'rgba(124,92,255,0.45)');
+      g.addColorStop(1, 'rgba(124,92,255,0.02)');
+      return g;
+    }
+
+    // Glow plugin for SWCI line
+    const glowPlugin = {
+      id:'glowPlugin',
+      afterDatasetDraw(chart, args){
+        const {ctx} = chart;
+        if(args.index !== 0) return; // only SWCI
+        ctx.save();
+        ctx.shadowColor = 'rgba(124,92,255,0.6)';
+        ctx.shadowBlur = 18;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = chart.data.datasets[0].borderColor;
+        args.meta.dataset.draw(ctx);
+        ctx.restore();
+      }
+    };
+
+    const chart = new Chart(chartEl, {
+      type:'line',
+      data:{ labels:[], datasets:[
+        { label:'SWCI', data:[], borderColor:accent, backgroundColor: swciGradient(), fill:true, cubicInterpolationMode:'monotone', tension:.35, borderWidth:2.5, pointRadius:0, yAxisID:'y' },
+        { label:'GreenProof', data:[], borderColor:'#10b981', tension:.25, borderWidth:1.8, pointRadius:0, yAxisID:'y' },
+        { label:'Efficiency', data:[], borderColor:'#fbbf24', tension:.25, borderWidth:1.8, pointRadius:0, yAxisID:'y' },
+        { label:'Carbon', data:[], borderColor:'#ff5c7a', tension:.2, borderDash:[4,4], borderWidth:1.6, pointRadius:0, yAxisID:'y2' },
+        { label:'Volatility', data:[], borderColor:'#60a5fa', tension:.25, borderWidth:1.8, pointRadius:0, yAxisID:'y' },
+      ]},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animations:{ radius:{ duration:0 }, colors:{ duration:0 }, x:{ duration:300 }, y:{ duration:300 } },
+        interaction:{ intersect:false, mode:'nearest' },
+        plugins:{ legend:{ labels:{ color:'#cfcfe1' } }, tooltip:{ enabled:true, callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${fmt(ctx.parsed.y, ctx.dataset.yAxisID==='y2'?1:3)}` } } },
+        scales:{
+          x:{ grid:{ color:'rgba(255,255,255,0.06)' }, ticks:{ color:'#9aa0aa' } },
+          y:{ position:'left', grid:{ color:'rgba(255,255,255,0.06)' }, ticks:{ color:'#9aa0aa' }, title:{ display:true, text:'Index / Normalized', color:'#9aa0aa' } },
+          y2:{ position:'right', grid:{ drawOnChartArea:false }, ticks:{ color:'#ff9aae' }, title:{ display:true, text:'Carbon (tCO₂)', color:'#ff9aae' } }
+        }
+      },
+      plugins:[glowPlugin]
+    });
+
+    // === Dynamics ===
+    function step(){
+      const { vars, weights } = readInputs();
+      const noise = vars.N;
+      const rng = () => (Math.random()*2-1) * noise; // symmetric noise
+
+      // Policy-inspired drifts
+      const carbDrift = -0.08 * weights.g + rng();
+      const greenDrift = 0.05 * weights.a + rng();
+      const effDrift   = 0.03 * weights.b + rng();
+      const volDrift   = -0.05 * weights.d + rng();
+
+      let G = clamp(vars.G + greenDrift*0.02, 0, 1);
+      let E = clamp(vars.E + effDrift*0.02, parseFloat(controls.eff.min), parseFloat(controls.eff.max));
+      let C = clamp(vars.C + carbDrift*0.8, parseFloat(controls.carb.min), parseFloat(controls.carb.max));
+      let V = clamp(vars.V + volDrift*0.03, parseFloat(controls.vol.min), parseFloat(controls.vol.max));
+
+      controls.green.value = G.toFixed(2);
+      controls.eff.value = E.toFixed(2);
+      controls.carb.value = C.toFixed(1);
+      controls.vol.value = V.toFixed(2);
+      writeLabels();
+      updateFormula();
+
+      const swci = computeSWCI({G,E,C,V}, weights);
+      updateKPI({G,E,C,V}, swci);
+
+      state.t += 1;
+      state.history.push({t:state.t, swci, green:G, eff:E, carb:C, vol:V});
+      chart.data.labels.push(state.t);
+      chart.data.datasets[0].data.push(swci);
+      chart.data.datasets[1].data.push(G);
+      chart.data.datasets[2].data.push(E);
+      chart.data.datasets[3].data.push(C);
+      chart.data.datasets[4].data.push(V);
+      chart.update('none');
+
+      getById('status-text').textContent = `${state.running? 'Running':'Paused'} · t = ${state.t}`;
+    }
+
+    let timer = null;
+    function play(){
+      stop();
+      state.running = true;
+      timer = setInterval(step, state.interval);
+      getById('btn-play').setAttribute('aria-pressed', 'true');
+      getById('btn-play').textContent = '⏸ Pause';
+      getById('status-text').textContent = `Running · t = ${state.t}`;
+    }
+    function stop(){
+      state.running = false;
+      clearInterval(timer);
+      getById('btn-play').setAttribute('aria-pressed', 'false');
+      getById('btn-play').textContent = '▶ Play';
+      getById('status-text').textContent = `Paused · t = ${state.t}`;
+    }
+    function togglePlay(){ state.running ? stop() : play(); }
+
+    function reset(){
+      stop();
+      state.t = 0; state.history = [];
+      chart.data.labels = []; chart.data.datasets.forEach(ds => ds.data = []); chart.update('none');
+      // defaults from paper
+      controls.green.value = 0.30; controls.eff.value = 1.00; controls.carb.value = 100; controls.vol.value = 0.60; controls.noise.value = 0.20;
+      controls.alpha.value = 1.00; controls.beta.value = 1.00; controls.gamma.value = 1.20; controls.delta.value = 0.80; controls.epsilon.value = 0.01;
+      controls.eta.value = 1.00; controls.zeta.value = 1.00; controls.theta.value = 1.50; controls.lambda.value = 1.10;
+      writeLabels(); updateFormula();
+      const { vars, weights } = readInputs();
+      const swci = computeSWCI(vars, weights);
+      updateKPI(vars, swci);
+      getById('status-text').textContent = 'Paused · t = 0';
+    }
+
+    function applyPreset(name){
+      if(name==='baseline'){
+        controls.alpha.value=1.0; controls.beta.value=1.0; controls.gamma.value=1.0; controls.delta.value=0.8; controls.epsilon.value=0.01;
+        controls.eta.value=1.0; controls.zeta.value=1.0; controls.theta.value=1.3; controls.lambda.value=1.0;
+        controls.noise.value=0.30;
+      }
+      if(name==='fixed'){
+        controls.alpha.value=1.1; controls.beta.value=1.0; controls.gamma.value=1.6; controls.delta.value=0.9; controls.epsilon.value=0.01;
+        controls.eta.value=1.0; controls.zeta.value=1.0; controls.theta.value=1.5; controls.lambda.value=1.1;
+        controls.noise.value=0.22;
+      }
+      if(name==='rl'){
+        controls.alpha.value=1.3; controls.beta.value=1.2; controls.gamma.value=1.8; controls.delta.value=1.3; controls.epsilon.value=0.01;
+        controls.eta.value=1.0; controls.zeta.value=1.0; controls.theta.value=1.6; controls.lambda.value=1.2;
+        controls.noise.value=0.16;
+      }
+      writeLabels(); updateFormula();
+    }
+
+    // CSV export
+    function exportCSV(){
+      if(state.history.length===0){ alert('No data yet. Press Play first.'); return; }
+      const header = ['t','SWCI','GreenProof','Efficiency','Carbon','Volatility'];
+      const rows = state.history.map(r=>[r.t, r.swci, r.green, r.eff, r.carb, r.vol]);
+      const csv = [header, ...rows].map(r=>r.join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'swci_run.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Tests
+    const resultsEl = getById('test-results');
+    function addResult(ok, name, extra=''){
+      const li = document.createElement('li');
+      li.style.color = ok ? 'var(--success)' : 'var(--danger)';
+      li.innerHTML = (ok? '✔️ PASS: ' : '❌ FAIL: ') + name + (extra? ` <span class=\"mono\">${extra}</span>`:'');
+      resultsEl.appendChild(li);
+    }
+    const approx = (a,b,eps=1e-9) => Math.abs(a-b) <= eps;
+    function runTests(){
+      resultsEl.innerHTML = '';
+      const vars1 = {G:1,E:1,C:1,V:1};
+      const w1 = {a:1,b:1,g:1,d:1,e:0,eta:1,zeta:1,theta:1,lambda:1};
+      addResult(approx(computeSWCI(vars1,w1), 0.5), 'Identity → 0.5');
+      addResult(approx(computeSWCI({G:0,E:1,C:1,V:1}, w1), 0), 'Zero GreenProof → 0');
+      const w2 = {a:1,b:1,g:1,d:1,e:0.01,eta:1,zeta:1,theta:1,lambda:1};
+      const lowC = computeSWCI({G:0.5,E:1,C:50,V:0.2}, w2);
+      const highC = computeSWCI({G:0.5,E:1,C:200,V:0.2}, w2);
+      addResult(lowC>highC, 'Monotonic carbon penalty', `lowC=${lowC.toFixed(6)} > highC=${highC.toFixed(6)}`);
+      const base = computeSWCI({G:0.4,E:1.2,C:60,V:0.3}, {a:1,b:1,g:1,d:1,e:0.01,eta:1,zeta:1,theta:1,lambda:1});
+      const plusAlpha = computeSWCI({G:0.4,E:1.2,C:60,V:0.3}, {a:2,b:1,g:1,d:1,e:0.01,eta:1,zeta:1,theta:1,lambda:1});
+      addResult(plusAlpha>base, 'Increasing α raises SWCI');
+      const out5 = computeSWCI({G:0.5,E:1,C:1,V:0}, w1);
+      addResult(approx(out5, 0.5), 'V=0 case → 0.5');
+    }
+
+    // Bindings
+    getById('btn-play').addEventListener('click', togglePlay);
+    btnReset.addEventListener('click', reset);
+    btnRunTests.addEventListener('click', runTests);
+    btnExport.addEventListener('click', exportCSV);
+    btnImpress.addEventListener('click', ()=>{
+      state.impress = !state.impress;
+      btnImpress.setAttribute('aria-pressed', String(state.impress));
+      cardEl.classList.toggle('glow', state.impress);
+      if(state.impress && !state.running) play();
+    });
+
+    presetButtons.baseline.addEventListener('click', ()=>applyPreset('baseline'));
+    presetButtons.fixed.addEventListener('click', ()=>applyPreset('fixed'));
+    presetButtons.rl.addEventListener('click', ()=>applyPreset('rl'));
+
+    Object.values(controls).forEach(inp => {
+      inp.addEventListener('input', () => {
+        writeLabels(); updateFormula();
+        const { vars, weights } = readInputs();
+        const swci = computeSWCI(vars, weights);
+        updateKPI(vars, swci);
+      });
+    });
+
+    speedEl.addEventListener('change', ()=>{
+      state.interval = clamp(parseInt(speedEl.value||200,10), 50, 2000);
+      if(state.running){ play(); } // restart with new interval
+    });
+
+    window.addEventListener('keydown', e => {
+      if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
+      if(e.key==='r' || e.key==='R'){ reset(); }
+      if(e.key==='1'){ applyPreset('baseline'); }
+      if(e.key==='2'){ applyPreset('fixed'); }
+      if(e.key==='3'){ applyPreset('rl'); }
+      if(e.key==='t' || e.key==='T'){ runTests(); }
+    });
+
+    // Initial paint & demo seeds
+    reset();
+    runTests();
+    // seed a few initial steps so chart isn't empty on load
+    for(let i=0;i<12;i++){ step(); }
+  })();
+  </script>
+</body>
+</html>
